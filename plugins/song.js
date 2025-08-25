@@ -43,15 +43,23 @@ cmd(
       if (!q) return reply("❌ *Please provide a song name or YouTube link*");
 
       const search = await yts(q);
+
+      // 🔹 Fix: check if result is empty
+      if (!search.videos || search.videos.length === 0) {
+        return reply("❌ No results found! Try another song name.");
+      }
+
       const data = search.videos[0];
+      if (!data) return reply("❌ Failed to fetch video info.");
+
       const url = data.url;
 
       let desc = `
-Song downloader
-🎬 *Title:* ${data.title}
-⏱️ *Duration:* ${data.timestamp}
-📅 *Uploaded:* ${data.ago}
-👀 *Views:* ${data.views.toLocaleString()}
+🎶 *Song Downloader*
+🎬 *Title:* ${data.title || "Unknown"}
+⏱️ *Duration:* ${data.timestamp || "Unknown"}
+📅 *Uploaded:* ${data.ago || "N/A"}
+👀 *Views:* ${data.views ? data.views.toLocaleString() : "N/A"}
 🔗 *Watch Here:* ${data.url}
 `;
 
@@ -64,11 +72,18 @@ Song downloader
       const quality = "192";
       const songData = await ytmp3(url, quality);
 
-      let durationParts = data.timestamp.split(":").map(Number);
-      let totalSeconds =
-        durationParts.length === 3
-          ? durationParts[0] * 3600 + durationParts[1] * 60 + durationParts[2]
-          : durationParts[0] * 60 + durationParts[1];
+      if (!songData?.download?.url) {
+        return reply("❌ Could not fetch download link.");
+      }
+
+      // 🔹 Fix: safer duration handling
+      let durationParts = data.timestamp
+        ? data.timestamp.split(":").map(Number)
+        : [0];
+
+      let totalSeconds = durationParts
+        .reverse()
+        .reduce((acc, val, i) => acc + val * 60 ** i, 0);
 
       if (totalSeconds > 1800) {
         return reply("⏳ *Sorry, audio files longer than 30 minutes are not supported.*");
