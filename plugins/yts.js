@@ -3,10 +3,10 @@ const yts = require("yt-search");
 
 cmd(
   {
-    pattern: "yts",
+    pattern: "yt",
     alias: ["yts", "youtubesearch"],
     react: "🔎",
-    desc: "Search YouTube videos",
+    desc: " Search YouTube videos",
     category: "search",
     filename: __filename,
   },
@@ -38,7 +38,7 @@ cmd(
       )).join("\n\n");
 
       const caption = `  
-Your youtube search results
+*Your youtube search results*
 ─────────────────────────
 🔎 *Query*: ${q}
 ${formattedResults}
@@ -48,7 +48,7 @@ ${formattedResults}
         from,
         {
           image: {
-            url: "https://github.com/DANUWA-MD/DANUWA-MD/blob/main/images/yts.png?raw=true",
+            url: "https://github.com/dineth07github/Dinu-MD-V1/blob/main/images/logo.png?raw=true",
           },
           caption,
         },
