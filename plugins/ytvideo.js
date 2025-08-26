@@ -1,6 +1,8 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
 const ytdl = require("ytdl-core");
+const fs = require("fs");
+const path = require("path");
 
 cmd(
   {
@@ -14,54 +16,67 @@ cmd(
     try {
       if (!q) return reply("❌ *Please provide a video name or YouTube link*");
 
-      // Search YouTube
-      const search = await yts(q);
-      const data = search.videos[0];
-      if (!data) return reply("❌ *No video found!*");
+      // Search YouTube if query is not a URL
+      let videoUrl = q;
+      if (!ytdl.validateURL(q)) {
+        const search = await yts(q);
+        if (!search.videos.length) return reply("❌ *No video found!*");
+        videoUrl = search.videos[0].url;
+      }
+
+      const info = await ytdl.getInfo(videoUrl);
+      const videoDetails = info.videoDetails;
 
       // Video info message
       let desc = `
 YouTube Video Downloader
-🎬 *Title:* ${data.title}
-⏱️ *Duration:* ${data.timestamp}
-📅 *Uploaded:* ${data.ago}
-👀 *Views:* ${data.views.toLocaleString()}
-🔗 *Watch Here:* ${data.url}
+🎬 *Title:* ${videoDetails.title}
+⏱️ *Duration:* ${new Date(videoDetails.lengthSeconds * 1000).toISOString().substr(11, 8)}
+👀 *Views:* ${parseInt(videoDetails.viewCount).toLocaleString()}
+🔗 *Watch Here:* ${videoDetails.video_url}
 `;
       await danuwa.sendMessage(
         from,
-        { image: { url: data.thumbnail }, caption: desc },
+        { image: { url: videoDetails.thumbnails[videoDetails.thumbnails.length - 1].url }, caption: desc },
         { quoted: mek }
       );
 
-      // Check file size before sending
-      const url = data.url;
-      const info = await ytdl.getInfo(url);
+      // Choose the highest quality format
       const format = ytdl.chooseFormat(info.formats, { quality: "highestvideo" });
       const fileSize = parseInt(format.contentLength || 0, 10);
 
-      if (fileSize > 50 * 1024 * 1024) {
+      if (!fileSize || fileSize > 50 * 1024 * 1024) {
         return reply("⏳ *Sorry, videos larger than 50MB cannot be sent.*");
       }
 
-      // Send video
-      await danuwa.sendMessage(
-        from,
-        { video: { url }, caption: `🎬 *${data.title}*`, mimetype: "video/mp4" },
-        { quoted: mek }
-      );
+      // Save temp file
+      const tempPath = path.join(__dirname, `${videoDetails.videoId}.mp4`);
+      const stream = ytdl(videoUrl, { format });
+      const writeStream = fs.createWriteStream(tempPath);
+      stream.pipe(writeStream);
 
-      // Optionally send as document
-      await danuwa.sendMessage(
-        from,
-        {
-          document: { url },
-          fileName: `${data.title}.mp4`,
-          mimetype: "video/mp4",
-          caption: "📥 *Your video is ready!*",
-        },
-        { quoted: mek }
-      );
+      writeStream.on("finish", async () => {
+        // Send video
+        await danuwa.sendMessage(
+          from,
+          { video: fs.readFileSync(tempPath), caption: `🎬 *${videoDetails.title}*`, mimetype: "video/mp4" },
+          { quoted: mek }
+        );
+
+        // Send as document
+        await danuwa.sendMessage(
+          from,
+          {
+            document: fs.readFileSync(tempPath),
+            fileName: `${videoDetails.title}.mp4`,
+            mimetype: "video/mp4",
+            caption: "📥 *Your video is ready!*",
+          },
+          { quoted: mek }
+        );
+
+        fs.unlinkSync(tempPath); // clean up
+      });
     } catch (e) {
       console.log(e);
       reply(`❌ *Error:* ${e.message} 😞`);
