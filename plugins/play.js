@@ -1,3 +1,4 @@
+const { cmd, commands } = require("../command");
 const yts = require('yt-search');
 const axios = require('axios');
 
@@ -55,6 +56,13 @@ async function playCommand(sock, chatId, message) {
             text: "Download failed. Please try again later."
         });
     }
+	 {
+    pattern: "play",
+    react: "🎶",
+    desc: "Download Song",
+    category: "download",
+    filename: __filename,
+  },
 }
 
 module.exports = playCommand; 
