@@ -1,6 +1,8 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
-const { ytmp3 } = require("@vreden/youtube_scraper");
+const ytdl = require("ytdl-core");
+const fs = require("fs");
+const path = require("path");
 
 cmd({
   pattern: "song",
@@ -27,34 +29,46 @@ cmd({
 🔗 *Watch Here:* ${data.url}
 `;
 
+    // Send video info first
     await danuwa.sendMessage(
       from,
       { image: { url: data.thumbnail }, caption: desc },
       { quoted: mek }
     );
 
-    let songData;
-    try {
-      songData = await ytmp3(url, "192");
-      if (!songData?.download?.url) {
-        return reply("❌ Could not fetch download link. Video may be restricted.");
-      }
-    } catch (err) {
-      console.log(err);
-      return reply("❌ Error fetching download link: " + err.message);
-    }
+    // Temp file path
+    const filePath = path.join(__dirname, "../temp", `${Date.now()}.mp3`);
 
-    await danuwa.sendMessage(
-      from,
-      {
-        audio: { url: songData.download.url },
-        mimetype: "audio/mpeg",
-      },
-      { quoted: mek }
-    );
+    // Download audio
+    const stream = ytdl(url, {
+      filter: "audioonly",
+      quality: "highestaudio",
+    });
+
+    const writeStream = fs.createWriteStream(filePath);
+    stream.pipe(writeStream);
+
+    writeStream.on("finish", async () => {
+      await danuwa.sendMessage(
+        from,
+        {
+          audio: { url: filePath },
+          mimetype: "audio/mpeg",
+        },
+        { quoted: mek }
+      );
+
+      // Cleanup
+      fs.unlinkSync(filePath);
+    });
+
+    stream.on("error", (err) => {
+      console.error(err);
+      reply("❌ Error downloading audio.");
+    });
 
   } catch (e) {
-    console.log(e);
+    console.error(e);
     reply(`❌ Error: ${e.message}`);
   }
 });
