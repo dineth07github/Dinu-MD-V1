@@ -12,38 +12,46 @@ cmd({
   try {
     if (!q) return reply("❌ Please provide a song name or YouTube link");
 
-    // YouTube Search
-    const search = await yts(q);
-    if (!search.videos || search.videos.length === 0)
+    // YouTube Search safely
+    const search = await yts(q).catch(() => null);
+    if (!search || !search.videos || search.videos.length === 0)
       return reply("❌ No results found!");
 
     const data = search.videos[0];
-    const url = data.url;
+    const url = data?.url;
+    if (!url) return reply("❌ Could not get song URL.");
 
     // Info message with thumbnail
-    let desc = `
+    const desc = `
 🎶 *Song Downloader*
-🎬 *Title:* ${data.title || "Unknown"}
-⏱️ *Duration:* ${data.timestamp || "Unknown"}
-👀 *Views:* ${data.views ? data.views.toLocaleString() : "N/A"}
-🔗 *Watch Here:* ${data.url}
+🎬 *Title:* ${data?.title || "Unknown"}
+⏱️ *Duration:* ${data?.timestamp || "Unknown"}
+👀 *Views:* ${data?.views?.toLocaleString() || "N/A"}
+🔗 *Watch Here:* ${url}
 `;
+
+    // Send thumbnail & info
     await danuwa.sendMessage(
       from,
-      { image: { url: data.thumbnail }, caption: desc },
+      { image: { url: data?.thumbnail || "" }, caption: desc },
       { quoted: mek }
     );
 
-    // Stream audio directly to WhatsApp (no temp file needed)
-    await danuwa.sendMessage(
-      from,
-      {
-        audio: ytdl(url, { filter: "audioonly", quality: "highestaudio" }),
-        mimetype: "audio/mpeg",
-        ptt: false // true 하면 음성메시지(story voice) වගේ යයි
-      },
-      { quoted: mek }
-    );
+    // Stream audio safely
+    try {
+      await danuwa.sendMessage(
+        from,
+        {
+          audio: ytdl(url, { filter: "audioonly", quality: "highestaudio" }),
+          mimetype: "audio/mpeg",
+          ptt: false
+        },
+        { quoted: mek }
+      );
+    } catch (audioErr) {
+      console.error("Audio download error:", audioErr);
+      reply("❌ Could not download the audio.");
+    }
 
   } catch (e) {
     console.error("Song command error:", e);
