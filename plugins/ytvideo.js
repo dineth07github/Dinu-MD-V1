@@ -10,28 +10,16 @@ cmd(
     category: "download",
     filename: __filename,
   },
-  async (
-    danuwa,
-    mek,
-    m,
-    {
-      from,
-      quoted,
-      body,
-      isCmd,
-      command,
-      args,
-      q,
-      reply,
-    }
-  ) => {
+  async (danuwa, mek, m, { from, q, reply }) => {
     try {
       if (!q) return reply("❌ *Please provide a video name or YouTube link*");
 
+      // Search YouTube
       const search = await yts(q);
       const data = search.videos[0];
       if (!data) return reply("❌ *No video found!*");
 
+      // Video info message
       let desc = `
 YouTube Video Downloader
 🎬 *Title:* ${data.title}
@@ -40,49 +28,40 @@ YouTube Video Downloader
 👀 *Views:* ${data.views.toLocaleString()}
 🔗 *Watch Here:* ${data.url}
 `;
-
-      // Send video info first
       await danuwa.sendMessage(
         from,
         { image: { url: data.thumbnail }, caption: desc },
         { quoted: mek }
       );
 
-      // Limit video size to 50 MB for sending via WhatsApp
-      const videoStream = ytdl(data.url, { quality: "highestvideo" });
-      let size = 0;
-      videoStream.on("data", (chunk) => (size += chunk.length));
+      // Check file size before sending
+      const url = data.url;
+      const info = await ytdl.getInfo(url);
+      const format = ytdl.chooseFormat(info.formats, { quality: "highestvideo" });
+      const fileSize = parseInt(format.contentLength || 0, 10);
 
-      videoStream.on("end", async () => {
-        // If video is too large
-        if (size > 50 * 1024 * 1024) {
-          return reply("⏳ *Sorry, videos larger than 50MB cannot be sent.*");
-        }
+      if (fileSize > 50 * 1024 * 1024) {
+        return reply("⏳ *Sorry, videos larger than 50MB cannot be sent.*");
+      }
 
-        // Send video
-        await danuwa.sendMessage(
-          from,
-          {
-            video: { url: data.url },
-            caption: `🎬 *${data.title}*`,
-            mimetype: "video/mp4",
-          },
-          { quoted: mek }
-        );
+      // Send video
+      await danuwa.sendMessage(
+        from,
+        { video: { url }, caption: `🎬 *${data.title}*`, mimetype: "video/mp4" },
+        { quoted: mek }
+      );
 
-        // Optional: send as document if needed
-        await danuwa.sendMessage(
-          from,
-          {
-            document: { url: data.url },
-            fileName: `${data.title}.mp4`,
-            mimetype: "video/mp4",
-            caption: "📥 *Your video is ready!*",
-          },
-          { quoted: mek }
-        );
-      });
-
+      // Optionally send as document
+      await danuwa.sendMessage(
+        from,
+        {
+          document: { url },
+          fileName: `${data.title}.mp4`,
+          mimetype: "video/mp4",
+          caption: "📥 *Your video is ready!*",
+        },
+        { quoted: mek }
+      );
     } catch (e) {
       console.log(e);
       reply(`❌ *Error:* ${e.message} 😞`);
